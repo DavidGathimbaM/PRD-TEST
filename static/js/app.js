@@ -19,7 +19,7 @@ function getElement(id) {
 function setText(id, value) {
     const element = getElement(id);
     if (element) {
-        element.textContent = value;
+        element.textContent = value ?? "";
     }
 }
 
@@ -40,6 +40,27 @@ function textValue(id) {
     const element = getElement(id);
     if (!element) return "";
     return element.value || "";
+}
+
+function clearElement(element) {
+    if (!element) return;
+    while (element.firstChild) {
+        element.removeChild(element.firstChild);
+    }
+}
+
+function makeElement(tag, className, text) {
+    const element = document.createElement(tag);
+
+    if (className) {
+        element.className = className;
+    }
+
+    if (text !== undefined && text !== null) {
+        element.textContent = text;
+    }
+
+    return element;
 }
 
 function openAddClientModal() {
@@ -126,6 +147,8 @@ async function submitNewClient(event) {
         }
 
         closeAddClientModal();
+        selectedClientId = result.clientId || null;
+
         await loadClients();
 
         if (result.clientId) {
@@ -149,16 +172,19 @@ async function loadClients() {
         const clientList = getElement("clientList");
         const clientSelect = getElement("clientSelect");
 
-        if (clientList) clientList.innerHTML = "";
-        if (clientSelect) clientSelect.innerHTML = "";
+        clearElement(clientList);
+        clearElement(clientSelect);
 
         if (!clients.length) {
             if (clientList) {
-                clientList.innerHTML = `<p class="muted">No clients found.</p>`;
+                clientList.appendChild(makeElement("p", "muted", "No clients found."));
             }
 
             if (clientSelect) {
-                clientSelect.innerHTML = `<option value="">No clients found</option>`;
+                const option = document.createElement("option");
+                option.value = "";
+                option.textContent = "No clients found";
+                clientSelect.appendChild(option);
             }
 
             return;
@@ -166,15 +192,26 @@ async function loadClients() {
 
         clients.forEach((client) => {
             if (clientList) {
-                const card = document.createElement("div");
-                card.className = "client-card";
+                const card = makeElement("div", "client-card");
                 card.dataset.clientId = client.id;
 
-                card.innerHTML = `
-                    <strong>${client.household_name}</strong>
-                    <span>${client.client1_name}${client.client2_name ? " & " + client.client2_name : ""}</span>
-                    <span>Inflow: ${money(client.monthly_inflow)} / Outflow: ${money(client.monthly_outflow)}</span>
-                `;
+                const name = makeElement("strong", null, client.household_name || "Unnamed Client");
+
+                const people = makeElement(
+                    "span",
+                    null,
+                    `${client.client1_name || ""}${client.client2_name ? " & " + client.client2_name : ""}`
+                );
+
+                const flow = makeElement(
+                    "span",
+                    null,
+                    `Inflow: ${money(client.monthly_inflow)} / Outflow: ${money(client.monthly_outflow)}`
+                );
+
+                card.appendChild(name);
+                card.appendChild(people);
+                card.appendChild(flow);
 
                 card.addEventListener("click", () => {
                     if (clientSelect) {
@@ -189,25 +226,26 @@ async function loadClients() {
             if (clientSelect) {
                 const option = document.createElement("option");
                 option.value = client.id;
-                option.textContent = client.household_name;
+                option.textContent = client.household_name || "Unnamed Client";
                 clientSelect.appendChild(option);
             }
         });
 
         if (clientSelect) {
-            clientSelect.addEventListener("change", (event) => {
+            clientSelect.onchange = (event) => {
                 if (event.target.value) {
                     loadClientDetail(event.target.value);
                 }
-            });
+            };
         }
 
-        if (!selectedClientId && clients.length > 0) {
-            if (clientSelect) {
-                clientSelect.value = clients[0].id;
-            }
-            await loadClientDetail(clients[0].id);
+        const clientToLoad = selectedClientId || clients[0].id;
+
+        if (clientSelect) {
+            clientSelect.value = clientToLoad;
         }
+
+        await loadClientDetail(clientToLoad);
     } catch (error) {
         console.error("Failed to load clients:", error);
         alert("Failed to load clients. Check Flask server logs.");
@@ -240,7 +278,7 @@ async function loadClientDetail(clientId) {
 
         const client = selectedClientData.client;
 
-        setText("householdTitle", client.household_name);
+        setText("householdTitle", client.household_name || "Unnamed Client");
         setText(
             "householdSubtitle",
             "Client data loaded from SQLite. Quarterly balances can be reviewed and edited before report generation."
@@ -293,33 +331,47 @@ function renderAccounts() {
 
     if (!wrapper) return;
 
+    clearElement(wrapper);
+
     if (!accounts.length) {
-        wrapper.innerHTML = `<p class="muted">No accounts found.</p>`;
+        wrapper.appendChild(makeElement("p", "muted", "No accounts found."));
         return;
     }
 
-    wrapper.innerHTML = `
-        <table>
-            <thead>
-                <tr>
-                    <th>Owner</th>
-                    <th>Category</th>
-                    <th>Type</th>
-                    <th>Balance</th>
-                </tr>
-            </thead>
-            <tbody>
-                ${accounts.map(account => `
-                    <tr>
-                        <td>${account.owner}</td>
-                        <td>${account.category}</td>
-                        <td>${account.account_type}</td>
-                        <td>${money(account.balance)}</td>
-                    </tr>
-                `).join("")}
-            </tbody>
-        </table>
-    `;
+    const table = document.createElement("table");
+    const thead = document.createElement("thead");
+    const headerRow = document.createElement("tr");
+
+    ["Owner", "Category", "Type", "Balance"].forEach((header) => {
+        const th = document.createElement("th");
+        th.textContent = header;
+        headerRow.appendChild(th);
+    });
+
+    thead.appendChild(headerRow);
+    table.appendChild(thead);
+
+    const tbody = document.createElement("tbody");
+
+    accounts.forEach((account) => {
+        const row = document.createElement("tr");
+
+        [
+            account.owner || "",
+            account.category || "",
+            account.account_type || "",
+            money(account.balance)
+        ].forEach((value) => {
+            const td = document.createElement("td");
+            td.textContent = value;
+            row.appendChild(td);
+        });
+
+        tbody.appendChild(row);
+    });
+
+    table.appendChild(tbody);
+    wrapper.appendChild(table);
 }
 
 function renderLiabilities() {
@@ -328,31 +380,46 @@ function renderLiabilities() {
 
     if (!wrapper) return;
 
+    clearElement(wrapper);
+
     if (!liabilities.length) {
-        wrapper.innerHTML = `<p class="muted">No liabilities found.</p>`;
+        wrapper.appendChild(makeElement("p", "muted", "No liabilities found."));
         return;
     }
 
-    wrapper.innerHTML = `
-        <table>
-            <thead>
-                <tr>
-                    <th>Type</th>
-                    <th>Rate</th>
-                    <th>Balance</th>
-                </tr>
-            </thead>
-            <tbody>
-                ${liabilities.map(liability => `
-                    <tr>
-                        <td>${liability.liability_type}</td>
-                        <td>${liability.interest_rate}</td>
-                        <td>${money(liability.remaining_balance)}</td>
-                    </tr>
-                `).join("")}
-            </tbody>
-        </table>
-    `;
+    const table = document.createElement("table");
+    const thead = document.createElement("thead");
+    const headerRow = document.createElement("tr");
+
+    ["Type", "Rate", "Balance"].forEach((header) => {
+        const th = document.createElement("th");
+        th.textContent = header;
+        headerRow.appendChild(th);
+    });
+
+    thead.appendChild(headerRow);
+    table.appendChild(thead);
+
+    const tbody = document.createElement("tbody");
+
+    liabilities.forEach((liability) => {
+        const row = document.createElement("tr");
+
+        [
+            liability.liability_type || "",
+            liability.interest_rate || "",
+            money(liability.remaining_balance)
+        ].forEach((value) => {
+            const td = document.createElement("td");
+            td.textContent = value;
+            row.appendChild(td);
+        });
+
+        tbody.appendChild(row);
+    });
+
+    table.appendChild(tbody);
+    wrapper.appendChild(table);
 }
 
 function calculateTotals() {
@@ -428,13 +495,14 @@ function updateCalculations() {
 
     const salaryBreakdown = getElement("salaryBreakdown");
     if (salaryBreakdown) {
-        const client1SalaryApprox = totals.inflow * 0.53;
-        const client2SalaryApprox = totals.inflow * 0.47;
+        clearElement(salaryBreakdown);
 
-        salaryBreakdown.innerHTML = `
-            <span>${money(client1SalaryApprox)} - Client 1</span><br>
-            <span>${money(client2SalaryApprox)} - Client 2</span>
-        `;
+        const line1 = makeElement("span", null, `${money(totals.inflow * 0.53)} - Client 1`);
+        const line2 = makeElement("span", null, `${money(totals.inflow * 0.47)} - Client 2`);
+
+        salaryBreakdown.appendChild(line1);
+        salaryBreakdown.appendChild(document.createElement("br"));
+        salaryBreakdown.appendChild(line2);
     }
 
     setText("page2PrivateReserveBalance", money(privateReserveBalance));
@@ -444,7 +512,7 @@ function updateCalculations() {
     setText("page2ReserveTarget", money(totals.privateReserveTarget));
     setText("page2ReserveGap", money(reserveGap));
 
-    setText("previewTccName", selectedClientData.client.household_name);
+    setText("previewTccName", selectedClientData.client.household_name || "Unnamed Client");
     setText("previewGrandTotal", money(totals.grandTotalNetWorth));
     setText("client1RetirementTotal", money(totals.client1RetirementTotal));
     setText("client2RetirementTotal", money(totals.client2RetirementTotal));
@@ -473,13 +541,21 @@ function renderTccAccountBubbles() {
 
     if (!wrapper) return;
 
-    wrapper.innerHTML = accounts.slice(0, 8).map(account => `
-        <div class="account-bubble">
-            <strong>${account.account_type}</strong>
-            <span>${money(account.balance)}</span>
-            <small>a/o ${account.as_of_date || "N/A"}</small>
-        </div>
-    `).join("");
+    clearElement(wrapper);
+
+    accounts.slice(0, 8).forEach((account) => {
+        const bubble = makeElement("div", "account-bubble");
+
+        const type = makeElement("strong", null, account.account_type || "Account");
+        const balance = makeElement("span", null, money(account.balance));
+        const date = makeElement("small", null, `a/o ${account.as_of_date || "N/A"}`);
+
+        bubble.appendChild(type);
+        bubble.appendChild(balance);
+        bubble.appendChild(date);
+
+        wrapper.appendChild(bubble);
+    });
 }
 
 function collectReportPayload() {
