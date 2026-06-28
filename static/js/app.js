@@ -51,32 +51,28 @@ function clearElement(element) {
 
 function makeElement(tag, className, text) {
     const element = document.createElement(tag);
-
-    if (className) {
-        element.className = className;
-    }
-
-    if (text !== undefined && text !== null) {
-        element.textContent = text;
-    }
-
+    if (className) element.className = className;
+    if (text !== undefined && text !== null) element.textContent = text;
     return element;
 }
 
+function openModal(id) {
+    const modal = getElement(id);
+    if (modal) modal.classList.remove("hidden");
+}
+
+function closeModal(id) {
+    const modal = getElement(id);
+    if (modal) modal.classList.add("hidden");
+}
+
 function openAddClientModal() {
-    const modal = getElement("addClientModal");
-    if (modal) {
-        modal.classList.remove("hidden");
-    }
+    openModal("addClientModal");
 }
 
 function closeAddClientModal() {
-    const modal = getElement("addClientModal");
+    closeModal("addClientModal");
     const form = getElement("addClientForm");
-
-    if (modal) {
-        modal.classList.add("hidden");
-    }
 
     if (form) {
         form.reset();
@@ -87,6 +83,52 @@ function closeAddClientModal() {
         setValue("newInsuranceDeductibles", 0);
         setValue("newFloorAmount", 1000);
         setValue("newTrustValue", 0);
+    }
+}
+
+function openAddAccountModal() {
+    if (!selectedClientId) {
+        alert("Please select a client first.");
+        return;
+    }
+
+    const today = new Date().toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit"
+    });
+
+    setValue("newAccountAsOfDate", today);
+    openModal("addAccountModal");
+}
+
+function closeAddAccountModal() {
+    closeModal("addAccountModal");
+    const form = getElement("addAccountForm");
+
+    if (form) {
+        form.reset();
+        setValue("newAccountBalance", 0);
+        setValue("newAccountCashBalance", 0);
+    }
+}
+
+function openAddLiabilityModal() {
+    if (!selectedClientId) {
+        alert("Please select a client first.");
+        return;
+    }
+
+    openModal("addLiabilityModal");
+}
+
+function closeAddLiabilityModal() {
+    closeModal("addLiabilityModal");
+    const form = getElement("addLiabilityForm");
+
+    if (form) {
+        form.reset();
+        setValue("newLiabilityRemainingBalance", 0);
     }
 }
 
@@ -115,6 +157,27 @@ function collectNewClientPayload() {
     };
 }
 
+function collectNewAccountPayload() {
+    return {
+        owner: textValue("newAccountOwner"),
+        category: textValue("newAccountCategory"),
+        accountType: textValue("newAccountType"),
+        accountName: textValue("newAccountName"),
+        accountLast4: textValue("newAccountLast4"),
+        balance: numberValue("newAccountBalance"),
+        cashBalance: numberValue("newAccountCashBalance"),
+        asOfDate: textValue("newAccountAsOfDate")
+    };
+}
+
+function collectNewLiabilityPayload() {
+    return {
+        liabilityType: textValue("newLiabilityType"),
+        interestRate: textValue("newLiabilityInterestRate"),
+        remainingBalance: numberValue("newLiabilityRemainingBalance")
+    };
+}
+
 async function submitNewClient(event) {
     event.preventDefault();
 
@@ -133,9 +196,7 @@ async function submitNewClient(event) {
     try {
         const response = await fetch("/api/clients", {
             method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
+            headers: {"Content-Type": "application/json"},
             body: JSON.stringify(payload)
         });
 
@@ -158,7 +219,127 @@ async function submitNewClient(event) {
         alert("Client created successfully.");
     } catch (error) {
         console.error("Create client failed:", error);
-        alert("Failed to create client. Check the Flask terminal.");
+        alert("Failed to create client. Check server logs.");
+    }
+}
+
+async function submitNewAccount(event) {
+    event.preventDefault();
+
+    if (!selectedClientId) {
+        alert("Please select a client first.");
+        return;
+    }
+
+    const payload = collectNewAccountPayload();
+
+    if (!payload.accountType.trim()) {
+        alert("Account type is required.");
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/clients/${selectedClientId}/accounts`, {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify(payload)
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+            alert(result.error || "Failed to create account.");
+            return;
+        }
+
+        closeAddAccountModal();
+        await loadClientDetail(selectedClientId);
+        alert("Account added successfully.");
+    } catch (error) {
+        console.error("Create account failed:", error);
+        alert("Failed to create account. Check server logs.");
+    }
+}
+
+async function submitNewLiability(event) {
+    event.preventDefault();
+
+    if (!selectedClientId) {
+        alert("Please select a client first.");
+        return;
+    }
+
+    const payload = collectNewLiabilityPayload();
+
+    if (!payload.liabilityType.trim()) {
+        alert("Liability type is required.");
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/clients/${selectedClientId}/liabilities`, {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify(payload)
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+            alert(result.error || "Failed to create liability.");
+            return;
+        }
+
+        closeAddLiabilityModal();
+        await loadClientDetail(selectedClientId);
+        alert("Liability added successfully.");
+    } catch (error) {
+        console.error("Create liability failed:", error);
+        alert("Failed to create liability. Check server logs.");
+    }
+}
+
+async function deleteAccount(accountId) {
+    if (!confirm("Delete this account?")) return;
+
+    try {
+        const response = await fetch(`/api/accounts/${accountId}`, {
+            method: "DELETE"
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+            alert(result.error || "Failed to delete account.");
+            return;
+        }
+
+        await loadClientDetail(selectedClientId);
+    } catch (error) {
+        console.error("Delete account failed:", error);
+        alert("Failed to delete account. Check server logs.");
+    }
+}
+
+async function deleteLiability(liabilityId) {
+    if (!confirm("Delete this liability?")) return;
+
+    try {
+        const response = await fetch(`/api/liabilities/${liabilityId}`, {
+            method: "DELETE"
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+            alert(result.error || "Failed to delete liability.");
+            return;
+        }
+
+        await loadClientDetail(selectedClientId);
+    } catch (error) {
+        console.error("Delete liability failed:", error);
+        alert("Failed to delete liability. Check server logs.");
     }
 }
 
@@ -176,17 +357,13 @@ async function loadClients() {
         clearElement(clientSelect);
 
         if (!clients.length) {
-            if (clientList) {
-                clientList.appendChild(makeElement("p", "muted", "No clients found."));
-            }
-
+            if (clientList) clientList.appendChild(makeElement("p", "muted", "No clients found."));
             if (clientSelect) {
                 const option = document.createElement("option");
                 option.value = "";
                 option.textContent = "No clients found";
                 clientSelect.appendChild(option);
             }
-
             return;
         }
 
@@ -195,28 +372,12 @@ async function loadClients() {
                 const card = makeElement("div", "client-card");
                 card.dataset.clientId = client.id;
 
-                const name = makeElement("strong", null, client.household_name || "Unnamed Client");
-
-                const people = makeElement(
-                    "span",
-                    null,
-                    `${client.client1_name || ""}${client.client2_name ? " & " + client.client2_name : ""}`
-                );
-
-                const flow = makeElement(
-                    "span",
-                    null,
-                    `Inflow: ${money(client.monthly_inflow)} / Outflow: ${money(client.monthly_outflow)}`
-                );
-
-                card.appendChild(name);
-                card.appendChild(people);
-                card.appendChild(flow);
+                card.appendChild(makeElement("strong", null, client.household_name || "Unnamed Client"));
+                card.appendChild(makeElement("span", null, `${client.client1_name || ""}${client.client2_name ? " & " + client.client2_name : ""}`));
+                card.appendChild(makeElement("span", null, `Inflow: ${money(client.monthly_inflow)} / Outflow: ${money(client.monthly_outflow)}`));
 
                 card.addEventListener("click", () => {
-                    if (clientSelect) {
-                        clientSelect.value = client.id;
-                    }
+                    if (clientSelect) clientSelect.value = client.id;
                     loadClientDetail(client.id);
                 });
 
@@ -233,22 +394,16 @@ async function loadClients() {
 
         if (clientSelect) {
             clientSelect.onchange = (event) => {
-                if (event.target.value) {
-                    loadClientDetail(event.target.value);
-                }
+                if (event.target.value) loadClientDetail(event.target.value);
             };
         }
 
         const clientToLoad = selectedClientId || clients[0].id;
-
-        if (clientSelect) {
-            clientSelect.value = clientToLoad;
-        }
-
+        if (clientSelect) clientSelect.value = clientToLoad;
         await loadClientDetail(clientToLoad);
     } catch (error) {
         console.error("Failed to load clients:", error);
-        alert("Failed to load clients. Check Flask server logs.");
+        alert("Failed to load clients. Check server logs.");
     }
 }
 
@@ -257,16 +412,11 @@ async function loadClientDetail(clientId) {
         selectedClientId = Number(clientId);
 
         document.querySelectorAll(".client-card").forEach((card) => {
-            card.classList.toggle(
-                "active",
-                Number(card.dataset.clientId) === Number(clientId)
-            );
+            card.classList.toggle("active", Number(card.dataset.clientId) === Number(clientId));
         });
 
         const clientSelect = getElement("clientSelect");
-        if (clientSelect) {
-            clientSelect.value = clientId;
-        }
+        if (clientSelect) clientSelect.value = clientId;
 
         const response = await fetch(`/api/clients/${clientId}`);
         selectedClientData = await response.json();
@@ -279,10 +429,7 @@ async function loadClientDetail(clientId) {
         const client = selectedClientData.client;
 
         setText("householdTitle", client.household_name || "Unnamed Client");
-        setText(
-            "householdSubtitle",
-            "Client data loaded from SQLite. Quarterly balances can be reviewed and edited before report generation."
-        );
+        setText("householdSubtitle", "Client data loaded from SQLite. Quarterly balances can be reviewed and edited before report generation.");
 
         setValue("client1Name", client.client1_name || "");
         setValue("client1Dob", client.client1_dob || "");
@@ -302,33 +449,27 @@ async function loadClientDetail(clientId) {
         setValue("floorAmount", client.floor_amount || 1000);
         setValue("trustValue", client.trust_value || 0);
 
-        setValue(
-            "reportDate",
-            new Date().toLocaleDateString("en-US", {
-                year: "numeric",
-                month: "long",
-                day: "numeric"
-            })
-        );
+        setValue("reportDate", new Date().toLocaleDateString("en-US", {
+            year: "numeric",
+            month: "long",
+            day: "numeric"
+        }));
 
         renderAccounts();
         renderLiabilities();
         updateCalculations();
 
         const downloadBtn = getElement("downloadPdfBtn");
-        if (downloadBtn) {
-            downloadBtn.disabled = false;
-        }
+        if (downloadBtn) downloadBtn.disabled = false;
     } catch (error) {
         console.error("Failed to load client detail:", error);
-        alert("Failed to load client detail. Check Flask server logs.");
+        alert("Failed to load client detail. Check server logs.");
     }
 }
 
 function renderAccounts() {
     const accounts = selectedClientData?.accounts || [];
     const wrapper = getElement("accountsTable");
-
     if (!wrapper) return;
 
     clearElement(wrapper);
@@ -342,7 +483,7 @@ function renderAccounts() {
     const thead = document.createElement("thead");
     const headerRow = document.createElement("tr");
 
-    ["Owner", "Category", "Type", "Balance"].forEach((header) => {
+    ["Owner", "Category", "Type", "Balance", "Action"].forEach((header) => {
         const th = document.createElement("th");
         th.textContent = header;
         headerRow.appendChild(th);
@@ -367,6 +508,13 @@ function renderAccounts() {
             row.appendChild(td);
         });
 
+        const actionTd = document.createElement("td");
+        const deleteBtn = makeElement("button", "danger-link", "Delete");
+        deleteBtn.type = "button";
+        deleteBtn.addEventListener("click", () => deleteAccount(account.id));
+        actionTd.appendChild(deleteBtn);
+        row.appendChild(actionTd);
+
         tbody.appendChild(row);
     });
 
@@ -377,7 +525,6 @@ function renderAccounts() {
 function renderLiabilities() {
     const liabilities = selectedClientData?.liabilities || [];
     const wrapper = getElement("liabilitiesTable");
-
     if (!wrapper) return;
 
     clearElement(wrapper);
@@ -391,7 +538,7 @@ function renderLiabilities() {
     const thead = document.createElement("thead");
     const headerRow = document.createElement("tr");
 
-    ["Type", "Rate", "Balance"].forEach((header) => {
+    ["Type", "Rate", "Balance", "Action"].forEach((header) => {
         const th = document.createElement("th");
         th.textContent = header;
         headerRow.appendChild(th);
@@ -414,6 +561,13 @@ function renderLiabilities() {
             td.textContent = value;
             row.appendChild(td);
         });
+
+        const actionTd = document.createElement("td");
+        const deleteBtn = makeElement("button", "danger-link", "Delete");
+        deleteBtn.type = "button";
+        deleteBtn.addEventListener("click", () => deleteLiability(liability.id));
+        actionTd.appendChild(deleteBtn);
+        row.appendChild(actionTd);
 
         tbody.appendChild(row);
     });
@@ -449,11 +603,7 @@ function calculateTotals() {
     const liabilitiesTotal = liabilities
         .reduce((sum, liability) => sum + Number(liability.remaining_balance || 0), 0);
 
-    const grandTotalNetWorth =
-        client1RetirementTotal +
-        client2RetirementTotal +
-        nonRetirementTotal +
-        trustValue;
+    const grandTotalNetWorth = client1RetirementTotal + client2RetirementTotal + nonRetirementTotal + trustValue;
 
     return {
         inflow,
@@ -496,13 +646,9 @@ function updateCalculations() {
     const salaryBreakdown = getElement("salaryBreakdown");
     if (salaryBreakdown) {
         clearElement(salaryBreakdown);
-
-        const line1 = makeElement("span", null, `${money(totals.inflow * 0.53)} - Client 1`);
-        const line2 = makeElement("span", null, `${money(totals.inflow * 0.47)} - Client 2`);
-
-        salaryBreakdown.appendChild(line1);
+        salaryBreakdown.appendChild(makeElement("span", null, `${money(totals.inflow * 0.53)} - Client 1`));
         salaryBreakdown.appendChild(document.createElement("br"));
-        salaryBreakdown.appendChild(line2);
+        salaryBreakdown.appendChild(makeElement("span", null, `${money(totals.inflow * 0.47)} - Client 2`));
     }
 
     setText("page2PrivateReserveBalance", money(privateReserveBalance));
@@ -521,16 +667,10 @@ function updateCalculations() {
     setText("previewLiabilitiesTotal", money(totals.liabilitiesTotal));
 
     setText("previewClient1", textValue("client1Name"));
-    setText(
-        "previewClient1Info",
-        `Age ${textValue("client1Age")} / DOB ${textValue("client1Dob")} / SSN ${textValue("client1SsnLast4")}`
-    );
+    setText("previewClient1Info", `Age ${textValue("client1Age")} / DOB ${textValue("client1Dob")} / SSN ${textValue("client1SsnLast4")}`);
 
     setText("previewClient2", textValue("client2Name"));
-    setText(
-        "previewClient2Info",
-        `Age ${textValue("client2Age")} / DOB ${textValue("client2Dob")} / SSN ${textValue("client2SsnLast4")}`
-    );
+    setText("previewClient2Info", `Age ${textValue("client2Age")} / DOB ${textValue("client2Dob")} / SSN ${textValue("client2SsnLast4")}`);
 
     renderTccAccountBubbles();
 }
@@ -538,22 +678,15 @@ function updateCalculations() {
 function renderTccAccountBubbles() {
     const accounts = selectedClientData?.accounts || [];
     const wrapper = getElement("tccAccountBubbles");
-
     if (!wrapper) return;
 
     clearElement(wrapper);
 
     accounts.slice(0, 8).forEach((account) => {
         const bubble = makeElement("div", "account-bubble");
-
-        const type = makeElement("strong", null, account.account_type || "Account");
-        const balance = makeElement("span", null, money(account.balance));
-        const date = makeElement("small", null, `a/o ${account.as_of_date || "N/A"}`);
-
-        bubble.appendChild(type);
-        bubble.appendChild(balance);
-        bubble.appendChild(date);
-
+        bubble.appendChild(makeElement("strong", null, account.account_type || "Account"));
+        bubble.appendChild(makeElement("span", null, money(account.balance)));
+        bubble.appendChild(makeElement("small", null, `a/o ${account.as_of_date || "N/A"}`));
         wrapper.appendChild(bubble);
     });
 }
@@ -609,16 +742,14 @@ async function downloadPdf() {
 
         const response = await fetch("/api/generate-pdf", {
             method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
+            headers: {"Content-Type": "application/json"},
             body: JSON.stringify(payload)
         });
 
         if (!response.ok) {
             const errorText = await response.text();
             console.error("PDF generation failed:", errorText);
-            alert("PDF generation failed. Check the Flask terminal for the backend error.");
+            alert("PDF generation failed. Check server logs.");
             return;
         }
 
@@ -635,7 +766,7 @@ async function downloadPdf() {
         window.URL.revokeObjectURL(url);
     } catch (error) {
         console.error("PDF download error:", error);
-        alert("PDF download failed. Check the browser console.");
+        alert("PDF download failed. Check browser console.");
     }
 }
 
@@ -661,42 +792,42 @@ document.addEventListener("DOMContentLoaded", () => {
         "reportDate"
     ].forEach((id) => {
         const element = getElement(id);
-        if (element) {
-            element.addEventListener("input", updateCalculations);
-        }
+        if (element) element.addEventListener("input", updateCalculations);
     });
 
-    const downloadBtn = getElement("downloadPdfBtn");
-    if (downloadBtn) {
-        downloadBtn.addEventListener("click", downloadPdf);
-    }
+    const handlers = [
+        ["downloadPdfBtn", downloadPdf],
+        ["openAddClientBtn", openAddClientModal],
+        ["closeAddClientBtn", closeAddClientModal],
+        ["cancelAddClientBtn", closeAddClientModal],
+        ["openAddAccountBtn", openAddAccountModal],
+        ["closeAddAccountBtn", closeAddAccountModal],
+        ["cancelAddAccountBtn", closeAddAccountModal],
+        ["openAddLiabilityBtn", openAddLiabilityModal],
+        ["closeAddLiabilityBtn", closeAddLiabilityModal],
+        ["cancelAddLiabilityBtn", closeAddLiabilityModal]
+    ];
 
-    const openAddClientBtn = getElement("openAddClientBtn");
-    if (openAddClientBtn) {
-        openAddClientBtn.addEventListener("click", openAddClientModal);
-    }
-
-    const closeAddClientBtn = getElement("closeAddClientBtn");
-    if (closeAddClientBtn) {
-        closeAddClientBtn.addEventListener("click", closeAddClientModal);
-    }
-
-    const cancelAddClientBtn = getElement("cancelAddClientBtn");
-    if (cancelAddClientBtn) {
-        cancelAddClientBtn.addEventListener("click", closeAddClientModal);
-    }
+    handlers.forEach(([id, handler]) => {
+        const element = getElement(id);
+        if (element) element.addEventListener("click", handler);
+    });
 
     const addClientForm = getElement("addClientForm");
-    if (addClientForm) {
-        addClientForm.addEventListener("submit", submitNewClient);
-    }
+    if (addClientForm) addClientForm.addEventListener("submit", submitNewClient);
 
-    const addClientModal = getElement("addClientModal");
-    if (addClientModal) {
-        addClientModal.addEventListener("click", (event) => {
-            if (event.target === addClientModal) {
-                closeAddClientModal();
-            }
-        });
-    }
+    const addAccountForm = getElement("addAccountForm");
+    if (addAccountForm) addAccountForm.addEventListener("submit", submitNewAccount);
+
+    const addLiabilityForm = getElement("addLiabilityForm");
+    if (addLiabilityForm) addLiabilityForm.addEventListener("submit", submitNewLiability);
+
+    ["addClientModal", "addAccountModal", "addLiabilityModal"].forEach((modalId) => {
+        const modal = getElement(modalId);
+        if (modal) {
+            modal.addEventListener("click", (event) => {
+                if (event.target === modal) closeModal(modalId);
+            });
+        }
+    });
 });

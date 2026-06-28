@@ -41,8 +41,8 @@
             <div class="panel note-panel">
                 <h3>V1 Scope</h3>
                 <p>
-                    This prototype uses SQLite client records, manual quarterly data entry,
-                    deterministic calculations, and ReportLab PDF generation.
+                    SQLite client records, manual quarterly data entry, deterministic calculations,
+                    account/liability setup, and ReportLab PDF generation.
                 </p>
                 <p class="muted">
                     No AI, Schwab, RightCapital, Pinnacle, Zillow, Canva, or Dropbox integrations in V1.
@@ -195,7 +195,10 @@
                 <div class="panel">
                     <div class="panel-header">
                         <h2>Accounts</h2>
-                        <span class="pill">SQLite</span>
+                        <div class="panel-actions">
+                            <span class="pill">SQLite</span>
+                            <button id="openAddAccountBtn" class="mini-btn" type="button">+ Add Account</button>
+                        </div>
                     </div>
 
                     <div id="accountsTable" class="table-wrap">
@@ -206,7 +209,10 @@
                 <div class="panel">
                     <div class="panel-header">
                         <h2>Liabilities</h2>
-                        <span class="pill">Separate Box</span>
+                        <div class="panel-actions">
+                            <span class="pill">Separate Box</span>
+                            <button id="openAddLiabilityBtn" class="mini-btn" type="button">+ Add Liability</button>
+                        </div>
                     </div>
 
                     <div id="liabilitiesTable" class="table-wrap">
@@ -489,6 +495,110 @@
                 <div class="modal-actions">
                     <button id="cancelAddClientBtn" class="secondary-btn" type="button">Cancel</button>
                     <button class="primary-btn" type="submit">Save Client</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="addAccountModal" class="modal hidden">
+        <div class="modal-card">
+            <div class="modal-header">
+                <div>
+                    <p class="eyebrow">Account Setup</p>
+                    <h2>Add Account</h2>
+                </div>
+                <button id="closeAddAccountBtn" class="icon-btn" type="button">×</button>
+            </div>
+
+            <form id="addAccountForm">
+                <div class="profile-grid">
+                    <div>
+                        <label>Owner *</label>
+                        <select id="newAccountOwner" required>
+                            <option value="client1">Client 1</option>
+                            <option value="client2">Client 2</option>
+                            <option value="joint">Joint</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label>Category *</label>
+                        <select id="newAccountCategory" required>
+                            <option value="retirement">Retirement</option>
+                            <option value="non_retirement">Non-Retirement</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label>Account Type *</label>
+                        <input id="newAccountType" type="text" required placeholder="IRA, Roth IRA, 401K, Brokerage">
+                    </div>
+
+                    <div>
+                        <label>Account Name</label>
+                        <input id="newAccountName" type="text" placeholder="Schwab Joint Brokerage">
+                    </div>
+
+                    <div>
+                        <label>Account Last 4</label>
+                        <input id="newAccountLast4" type="text" maxlength="4">
+                    </div>
+
+                    <div>
+                        <label>Balance</label>
+                        <input id="newAccountBalance" type="number" value="0">
+                    </div>
+
+                    <div>
+                        <label>Cash Balance</label>
+                        <input id="newAccountCashBalance" type="number" value="0">
+                    </div>
+
+                    <div>
+                        <label>As Of Date</label>
+                        <input id="newAccountAsOfDate" type="text" placeholder="06/28/2026">
+                    </div>
+                </div>
+
+                <div class="modal-actions">
+                    <button id="cancelAddAccountBtn" class="secondary-btn" type="button">Cancel</button>
+                    <button class="primary-btn" type="submit">Save Account</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="addLiabilityModal" class="modal hidden">
+        <div class="modal-card">
+            <div class="modal-header">
+                <div>
+                    <p class="eyebrow">Liability Setup</p>
+                    <h2>Add Liability</h2>
+                </div>
+                <button id="closeAddLiabilityBtn" class="icon-btn" type="button">×</button>
+            </div>
+
+            <form id="addLiabilityForm">
+                <div class="profile-grid">
+                    <div>
+                        <label>Liability Type *</label>
+                        <input id="newLiabilityType" type="text" required placeholder="Primary Mortgage">
+                    </div>
+
+                    <div>
+                        <label>Interest Rate</label>
+                        <input id="newLiabilityInterestRate" type="text" placeholder="4.25%">
+                    </div>
+
+                    <div>
+                        <label>Remaining Balance</label>
+                        <input id="newLiabilityRemainingBalance" type="number" value="0">
+                    </div>
+                </div>
+
+                <div class="modal-actions">
+                    <button id="cancelAddLiabilityBtn" class="secondary-btn" type="button">Cancel</button>
+                    <button class="primary-btn" type="submit">Save Liability</button>
                 </div>
             </form>
         </div>

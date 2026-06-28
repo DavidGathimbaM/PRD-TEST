@@ -1,6 +1,6 @@
 import os
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timezone
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -8,6 +8,10 @@ DATABASE_PATH = os.getenv(
     "RAILWAY_DATABASE_PATH",
     os.path.join(BASE_DIR, "instance", "app.db")
 )
+
+
+def utc_now():
+    return datetime.now(timezone.utc).isoformat()
 
 
 def get_db_connection():
@@ -123,7 +127,7 @@ def seed_database_if_empty():
         conn.close()
         return
 
-    now = datetime.utcnow().isoformat()
+    now = utc_now()
 
     cursor.execute("""
         INSERT INTO clients (
@@ -363,7 +367,7 @@ def create_client(client_data):
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    now = datetime.utcnow().isoformat()
+    now = utc_now()
 
     cursor.execute("""
         INSERT INTO clients (
@@ -422,54 +426,17 @@ def create_client(client_data):
 
     client_id = cursor.lastrowid
 
-    starter_accounts = [
-        (
-            client_id,
-            "client1",
-            "retirement",
-            "IRA",
-            "Client 1 IRA",
-            "",
-            0,
-            0,
-            ""
-        ),
-        (
-            client_id,
-            "client2",
-            "retirement",
-            "IRA",
-            "Client 2 IRA",
-            "",
-            0,
-            0,
-            ""
-        ),
-        (
-            client_id,
-            "joint",
-            "non_retirement",
-            "Brokerage",
-            "Joint Brokerage",
-            "",
-            0,
-            0,
-            ""
-        ),
-        (
-            client_id,
-            "joint",
-            "non_retirement",
-            "Checking",
-            "Primary Checking",
-            "",
-            0,
-            0,
-            ""
-        )
-    ]
+    conn.commit()
+    conn.close()
 
-    cursor.executemany("""
+    return client_id
+
+
+def create_account(client_id, account_data):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
         INSERT INTO accounts (
             client_id,
             owner,
@@ -482,12 +449,129 @@ def create_client(client_data):
             as_of_date
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, starter_accounts)
+    """, (
+        client_id,
+        account_data.get("owner", "").strip(),
+        account_data.get("category", "").strip(),
+        account_data.get("accountType", "").strip(),
+        account_data.get("accountName", "").strip(),
+        account_data.get("accountLast4", "").strip(),
+        account_data.get("balance", 0),
+        account_data.get("cashBalance", 0),
+        account_data.get("asOfDate", "").strip()
+    ))
+
+    account_id = cursor.lastrowid
+
+    cursor.execute("""
+        UPDATE clients
+        SET updated_at = ?
+        WHERE id = ?
+    """, (utc_now(), client_id))
 
     conn.commit()
     conn.close()
 
-    return client_id
+    return account_id
+
+
+def delete_account(account_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    account = cursor.execute("""
+        SELECT client_id
+        FROM accounts
+        WHERE id = ?
+    """, (account_id,)).fetchone()
+
+    if account is None:
+        conn.close()
+        return False
+
+    client_id = account["client_id"]
+
+    cursor.execute("""
+        DELETE FROM accounts
+        WHERE id = ?
+    """, (account_id,))
+
+    cursor.execute("""
+        UPDATE clients
+        SET updated_at = ?
+        WHERE id = ?
+    """, (utc_now(), client_id))
+
+    conn.commit()
+    conn.close()
+
+    return True
+
+
+def create_liability(client_id, liability_data):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        INSERT INTO liabilities (
+            client_id,
+            liability_type,
+            interest_rate,
+            remaining_balance
+        )
+        VALUES (?, ?, ?, ?)
+    """, (
+        client_id,
+        liability_data.get("liabilityType", "").strip(),
+        liability_data.get("interestRate", "").strip(),
+        liability_data.get("remainingBalance", 0)
+    ))
+
+    liability_id = cursor.lastrowid
+
+    cursor.execute("""
+        UPDATE clients
+        SET updated_at = ?
+        WHERE id = ?
+    """, (utc_now(), client_id))
+
+    conn.commit()
+    conn.close()
+
+    return liability_id
+
+
+def delete_liability(liability_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    liability = cursor.execute("""
+        SELECT client_id
+        FROM liabilities
+        WHERE id = ?
+    """, (liability_id,)).fetchone()
+
+    if liability is None:
+        conn.close()
+        return False
+
+    client_id = liability["client_id"]
+
+    cursor.execute("""
+        DELETE FROM liabilities
+        WHERE id = ?
+    """, (liability_id,))
+
+    cursor.execute("""
+        UPDATE clients
+        SET updated_at = ?
+        WHERE id = ?
+    """, (utc_now(), client_id))
+
+    conn.commit()
+    conn.close()
+
+    return True
 
 
 def save_report_history(client_id, report_data):
@@ -524,7 +608,7 @@ def save_report_history(client_id, report_data):
         report_data.get("trustValue", 0),
         report_data.get("grandTotalNetWorth", 0),
         report_data.get("liabilitiesTotal", 0),
-        datetime.utcnow().isoformat()
+        utc_now()
     ))
 
     conn.commit()
